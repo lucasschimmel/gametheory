@@ -164,12 +164,12 @@ SemVer history.
 - Foundation `Tournament`, `SpatialTournament`, evolutionary loop,
   CSV export.
 
-[Unreleased]: https://github.com/lanexadev/gametheory/compare/main...HEAD
-[0.7.0]: https://github.com/lanexadev/gametheory/commit/bb53ddd
-[0.6.0]: https://github.com/lanexadev/gametheory/commit/232f473
-[0.5.0]: https://github.com/lanexadev/gametheory/commit/4d5affc
-[0.4.0]: https://github.com/lanexadev/gametheory/commit/dda0987
-[0.3.0]: https://github.com/lanexadev/gametheory/commit/6465640
-[0.2.0]: https://github.com/lanexadev/gametheory/commit/89d5075
-[0.1.0]: https://github.com/lanexadev/gametheory/commit/d2ba7d0
-[0.0.1]: https://github.com/lanexadev/gametheory/commit/f7801bd
+[Unreleased]: https://github.com/lucasschimmel/gametheory/compare/main...HEAD
+[0.7.0]: https://github.com/lucasschimmel/gametheory/commit/bb53ddd
+[0.6.0]: https://github.com/lucasschimmel/gametheory/commit/232f473
+[0.5.0]: https://github.com/lucasschimmel/gametheory/commit/4d5affc
+[0.4.0]: https://github.com/lucasschimmel/gametheory/commit/dda0987
+[0.3.0]: https://github.com/lucasschimmel/gametheory/commit/6465640
+[0.2.0]: https://github.com/lucasschimmel/gametheory/commit/89d5075
+[0.1.0]: https://github.com/lucasschimmel/gametheory/commit/d2ba7d0
+[0.0.1]: https://github.com/lucasschimmel/gametheory/commit/f7801bd
