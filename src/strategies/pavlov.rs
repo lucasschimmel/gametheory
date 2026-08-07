@@ -1,19 +1,24 @@
-/// Pavlov (Win-Stay, Lose-Shift): Cooperates if it and the opponent played the same move last turn, 
-/// otherwise it switches its behavior.
-use crate::{Action, Strategy};
+use crate::{Action, History, Strategy};
 
 #[derive(Clone, Default)]
 pub struct Pavlov;
 impl Strategy for Pavlov {
-    fn name(&self) -> &str { "Pavlov (Win-Stay, Lose-Shift)" }
-    fn next_move(&self, my_history: &[Action], opponent_history: &[Action]) -> Action {
-        match (my_history.last(), opponent_history.last()) {
-            (None, _) => Action::Cooperate,
-            (Some(&my), Some(&opp)) => {
-                if my == opp { Action::Cooperate } else { Action::Defect }
+    fn name(&self) -> &str {
+        "Pavlov"
+    }
+    fn next_move(&mut self, history: &History) -> Action {
+        match history.last() {
+            Some(&(my, opp)) => {
+                if my == opp {
+                    Action::Cooperate
+                } else {
+                    Action::Defect
+                }
             }
-            _ => Action::Cooperate,
+            None => Action::Cooperate,
         }
     }
-    fn clone_box(&self) -> Box<dyn Strategy> { Box::new(self.clone()) }
+    fn clone_box(&self) -> Box<dyn Strategy> {
+        Box::new(self.clone())
+    }
 }

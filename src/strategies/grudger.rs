@@ -1,14 +1,19 @@
-/// Grudger: Cooperates until the opponent defects once, then defects for the rest of the game. 
-/// Extremely unforgiving.
-use crate::{Action, Strategy};
+use crate::{Action, History, Strategy};
 
 #[derive(Clone, Default)]
 pub struct Grudger;
 impl Strategy for Grudger {
-    fn name(&self) -> &str { "Grudger" }
-    fn next_move(&self, _: &[Action], opponent_history: &[Action]) -> Action {
-        let has_defected = opponent_history.iter().any(|&a| a == Action::Defect);
-        if has_defected { Action::Defect } else { Action::Cooperate }
+    fn name(&self) -> &str {
+        "Grudger"
     }
-    fn clone_box(&self) -> Box<dyn Strategy> { Box::new(self.clone()) }
+    fn next_move(&mut self, history: &History) -> Action {
+        if history.iter().any(|(_, opp)| *opp == Action::Defect) {
+            Action::Defect
+        } else {
+            Action::Cooperate
+        }
+    }
+    fn clone_box(&self) -> Box<dyn Strategy> {
+        Box::new(self.clone())
+    }
 }

@@ -1,6 +1,12 @@
 use clap::Parser;
-use game_theory::{Tournament, strategies, Game, SpatialTournament};
+use game_theory::{
+    Game, SpatialTournament, Strategy, Tournament,
+    experiment::{ExperimentConfig, calculate_entropy},
+    strategies,
+};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -10,194 +16,148 @@ struct Args {
 
     #[arg(long, default_value_t = 0.0)]
     action_noise: f64,
-    
+
     #[arg(long, default_value_t = 0.0)]
     perception_noise: f64,
-    
+
     #[arg(long, default_value_t = 0.0)]
     discount_factor: f64,
 
     #[arg(short, long, default_value_t = 1)]
     repetitions: usize,
 
-    #[arg(short, long, default_value_t = 10)]
-    swiss_rounds: usize,
-
-    #[arg(long)]
-    swiss: bool,
-
-    #[arg(long)]
-    finale: bool,
-    
     #[arg(long)]
     evolution: bool,
-    
+
     #[arg(long, default_value_t = 50)]
     generations: usize,
-    
+
     #[arg(long, default_value_t = 0.2)]
     reproduction_rate: f64,
-    
+
     #[arg(long)]
     spatial: bool,
-    
+
     #[arg(long, default_value_t = 20)]
     grid_size: usize,
-    
-    #[arg(long)]
-    export_csv: Option<String>,
-    
+
     #[arg(long)]
     seed: Option<u64>,
-    
-    #[arg(long, default_value_t = 5)]
-    payoff_t: i32,
-    #[arg(long, default_value_t = 3)]
-    payoff_r: i32,
-    #[arg(long, default_value_t = 1)]
-    payoff_p: i32,
-    #[arg(long, default_value_t = 0)]
-    payoff_s: i32,
+
+    #[arg(long)]
+    json_output: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    println!("Starting Advanced Axelrod Tournament...");
-    println!("Iterations: {}, Action Noise: {}, Perception Noise: {}, Discount Factor: {}", 
-             args.iterations, args.action_noise, args.perception_noise, args.discount_factor);
-    println!("Payoffs - T:{}, R:{}, P:{}, S:{}", args.payoff_t, args.payoff_r, args.payoff_p, args.payoff_s);
-    if let Some(seed) = args.seed {
-        println!("Seed: {}", seed);
-    }
-
-    let game = Game {
+    let config = ExperimentConfig {
+        name: "IPD Experiment".to_string(),
         iterations: args.iterations,
         action_noise: args.action_noise,
         perception_noise: args.perception_noise,
         discount_factor: args.discount_factor,
-        payoffs: (args.payoff_t, args.payoff_r, args.payoff_p, args.payoff_s),
+        payoffs: (5, 3, 1, 0),
         seed: args.seed,
+        generations: args.generations,
+        reproduction_rate: args.reproduction_rate,
+        grid_size: args.grid_size,
+    };
+
+    println!("Starting Research-Grade Axelrod Tournament...");
+    println!("Config: {}", serde_json::to_string_pretty(&config).unwrap());
+
+    let game = Game {
+        iterations: config.iterations,
+        action_noise: config.action_noise,
+        perception_noise: config.perception_noise,
+        discount_factor: config.discount_factor,
+        payoffs: config.payoffs,
+        seed: config.seed,
     };
 
     let strategies = strategies::get_all_strategies();
-    let mut results: HashMap<String, i32> = HashMap::new();
 
     if args.spatial {
-        println!("Running Spatial Tournament ({}x{} grid) for {} generations...", args.grid_size, args.grid_size, args.generations);
-        let mut spatial_tournament = SpatialTournament::new(args.grid_size, args.grid_size, strategies, game.clone());
-        for _ in 0..args.generations {
-            spatial_tournament.step();
-        }
-        let counts = spatial_tournament.get_population_counts();
-        println!("\nFinal Spatial Population:");
-        let mut sorted_counts: Vec<_> = counts.into_iter().collect();
-        sorted_counts.sort_by(|a, b| b.1.cmp(&a.1));
-        for (name, count) in sorted_counts.iter().take(20) {
-            println!("{:<30} | {} cells", name, count);
-        }
-        return; // Spatial has different metric (population count, not score)
-    }
-
-    let mut tournament = Tournament::new(strategies.clone(), game.clone());
-
-    if args.evolution {
-        println!("Running Evolutionary Tournament ({} generations, {:.0}% reproduction)...", args.generations, args.reproduction_rate * 100.0);
-        let (final_scores, evolution_history) = tournament.run_evolution(args.generations, args.reproduction_rate);
-        results = final_scores;
-        
-        if let Some(path) = &args.export_csv {
-            let history_path = path.replace(".csv", "_evolution.csv");
-            if let Err(e) = export_evolution_history(&history_path, &evolution_history) {
-                eprintln!("Failed to export evolution history: {}", e);
-            } else {
-                println!("Evolution history exported to {}", history_path);
-            }
-        }
-        display_results(&results);
-    } else if args.swiss {
-        println!("Running Swiss System ({} rounds)...", args.swiss_rounds);
-        results = tournament.run_swiss(args.swiss_rounds);
-        display_results(&results);
+        run_spatial_experiment(&config, strategies, game);
+    } else if args.evolution {
+        run_evolutionary_experiment(&config, strategies, game, args.json_output);
     } else {
-        println!("Running Round Robin...");
-        for _ in 0..args.repetitions {
-            let round_results = tournament.run_round_robin();
-            for (name, score) in round_results {
-                *results.entry(name).or_insert(0) += score;
-            }
-        }
-        display_results(&results);
-    }
-
-    if args.finale {
-        println!("\nRunning Grand Finale for top 3...");
-        let winner = tournament.run_grand_finale(3);
-        println!("The Grand Winner is: {}", winner);
-    }
-
-    if let Some(path) = args.export_csv {
-        if let Err(e) = export_to_csv(&path, &results) {
-            eprintln!("Failed to export CSV: {}", e);
-        } else {
-            println!("Results exported to {}", path);
-        }
+        run_standard_experiment(strategies, game);
     }
 }
 
-fn display_results(scores: &HashMap<String, i32>) {
-    let mut final_results: Vec<_> = scores.iter().collect();
-    final_results.sort_by(|a, b| b.1.cmp(a.1));
+fn run_spatial_experiment(
+    config: &ExperimentConfig,
+    strategies: Vec<Box<dyn Strategy>>,
+    game: Game,
+) {
+    println!("\nRunning Spatial Experiment...");
+    let mut spatial_tournament =
+        SpatialTournament::new(config.grid_size, config.grid_size, strategies, game);
 
-    println!("\nFinal Results (Top 20):");
-    println!("{:<30} | {:<10}", "Strategy", "Total Score");
-    println!("{:-<30}-|-{:-<10}", "", "");
-    for (name, score) in final_results.iter().take(20) {
-        println!("{:<30} | {:<10}", name, score);
+    for generation in 0..config.generations {
+        spatial_tournament.step();
+        if generation % 10 == 0 {
+            let counts = spatial_tournament.get_population_counts();
+            let entropy = calculate_entropy(&counts);
+            println!("Gen {}: Entropy = {:.4}", generation, entropy);
+        }
     }
+
+    let final_counts = spatial_tournament.get_population_counts();
+    display_population_results(&final_counts);
 }
 
-fn export_evolution_history(path: &str, history: &[HashMap<String, usize>]) -> Result<(), Box<dyn std::error::Error>> {
-    let mut wtr = csv::Writer::from_path(path)?;
-    
-    // Get all unique strategy names
-    let mut all_names: Vec<_> = history.iter()
-        .flat_map(|h| h.keys())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    all_names.sort();
+fn run_evolutionary_experiment(
+    config: &ExperimentConfig,
+    strategies: Vec<Box<dyn Strategy>>,
+    game: Game,
+    json_path: Option<String>,
+) {
+    println!("\nRunning Evolutionary Experiment...");
+    let mut tournament = Tournament::new(strategies, game);
+    let (_, history) = tournament.run_evolution(config.generations, config.reproduction_rate);
 
-    // Header: Generation, Strategy1, Strategy2, ...
-    let mut header = vec!["Generation".to_string()];
-    for name in &all_names {
-        header.push(name.to_string());
-    }
-    wtr.write_record(&header)?;
-
+    println!("\nEvolution Metrics:");
+    println!("{:<10} | {:<10} | {:<10}", "Gen", "Entropy", "Diversity");
     for (generation, counts) in history.iter().enumerate() {
-        let mut row = vec![generation.to_string()];
-        for name in &all_names {
-            let count = counts.get(*name).unwrap_or(&0);
-            row.push(count.to_string());
+        if generation % 10 == 0 || generation == history.len() - 1 {
+            let entropy = calculate_entropy(&counts);
+            let diversity = counts.len();
+            println!("{:<10} | {:<10.4} | {:<10}", generation, entropy, diversity);
         }
-        wtr.write_record(&row)?;
     }
-    
-    wtr.flush()?;
-    Ok(())
+
+    if let Some(path) = json_path {
+        let json = serde_json::to_string_pretty(&history).unwrap();
+        let mut file = File::create(path).unwrap();
+        file.write_all(json.as_bytes()).unwrap();
+    }
+
+    let final_counts = history.last().unwrap();
+    display_population_results(final_counts);
 }
 
-fn export_to_csv(path: &str, scores: &HashMap<String, i32>) -> Result<(), Box<dyn std::error::Error>> {
-    let mut wtr = csv::Writer::from_path(path)?;
-    wtr.write_record(&["Strategy", "Score"])?;
-    
-    let mut final_results: Vec<_> = scores.iter().collect();
-    final_results.sort_by(|a, b| b.1.cmp(a.1));
-    
-    for (name, score) in final_results {
-        wtr.write_record(&[name, &score.to_string()])?;
+fn run_standard_experiment(strategies: Vec<Box<dyn Strategy>>, game: Game) {
+    let tournament = Tournament::new(strategies, game);
+    let results = tournament.run_round_robin();
+
+    let mut sorted_results: Vec<_> = results.iter().collect();
+    sorted_results.sort_by(|a, b| b.1.cmp(a.1));
+
+    println!("\nFinal Scores:");
+    for (name, score) in sorted_results.iter().take(20) {
+        println!("{:<40} | {}", name, score);
     }
-    wtr.flush()?;
-    Ok(())
+}
+
+fn display_population_results(counts: &HashMap<String, usize>) {
+    let mut sorted_counts: Vec<_> = counts.iter().collect();
+    sorted_counts.sort_by(|a, b| b.1.cmp(a.1));
+
+    println!("\nFinal Population Distribution:");
+    for (name, count) in sorted_counts.iter().take(20) {
+        println!("{:<40} | {} individuals", name, count);
+    }
 }
